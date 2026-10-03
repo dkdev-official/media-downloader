@@ -1,1 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Media Downloader</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="container">
+    <div class="logo">MEDIA<span>DL</span></div>
+    <h1>Media Downloader</h1>
+    <p class="subtitle">Download authorized media using yt-dlp</p>
 
+    <div class="card">
+        <label for="url">YouTube / Instagram URL</label>
+        <input id="url" type="url" placeholder="Paste your URL here..." autocomplete="off">
+
+        <div class="buttons">
+            <button class="download-btn" data-type="video">🎬 Video</button>
+            <button class="download-btn" data-type="audio">🎵 Audio</button>
+            <button class="download-btn" data-type="merged">🎬+🎵 Merged</button>
+        </div>
+
+        <div id="status" class="status hidden">
+            <div class="status-text">Preparing download...</div>
+            <div class="progress-container"><div id="progress" class="progress"></div></div>
+            <div id="percentage">0%</div>
+        </div>
+
+        <div id="message" class="message"></div>
+    </div>
+
+    <div class="info">Use only for content you own or have permission to download.</div>
+
+    <section class="files-section">
+        <div class="files-header">
+            <h2>Downloaded Files</h2>
+            <button id="refresh">Refresh</button>
+        </div>
+        <div id="files">Loading...</div>
+    </section>
+</main>
+<script src="app.js"></script>
+</body>
+  </html>
