@@ -1,0 +1,31 @@
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;font-family:Arial,Helvetica,sans-serif;background:radial-gradient(circle at top,#202040,#090910 55%);color:white}
+.container{width:min(900px,92%);margin:0 auto;padding:70px 0}
+.logo{text-align:center;font-size:18px;font-weight:800;letter-spacing:3px}
+.logo span{color:#8b7cff}
+h1{text-align:center;margin-top:20px;font-size:clamp(35px,7vw,65px)}
+.subtitle{text-align:center;color:#aaaabd;margin-top:12px}
+.card{margin-top:40px;padding:30px;border:1px solid #29293c;border-radius:20px;background:rgba(20,20,32,.85);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+label{display:block;margin-bottom:10px;color:#c8c8d8}
+input{width:100%;padding:17px;border:1px solid #39394e;border-radius:12px;background:#0d0d16;color:white;outline:none;font-size:16px}
+input:focus{border-color:#8b7cff}
+.buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}
+button{border:none;border-radius:11px;padding:15px;cursor:pointer;background:#252538;color:white;font-weight:700}
+button:hover{background:#353551}
+.download-btn{transition:transform .15s}
+.download-btn:hover{transform:translateY(-2px)}
+.download-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.status{margin-top:25px;text-align:center}.hidden{display:none}
+.status-text{margin-bottom:12px;color:#cfcfe0}
+.progress-container{width:100%;height:10px;background:#10101a;border-radius:100px;overflow:hidden}
+.progress{width:0%;height:100%;background:#8b7cff;transition:width .2s}
+#percentage{margin-top:8px;color:#aaaabd}
+.message{margin-top:20px;text-align:center}.message.success{color:#79e6a4}.message.error{color:#ff7c7c}
+.info{margin-top:20px;text-align:center;font-size:13px;color:#77778a}
+.files-section{margin-top:40px;padding:25px;border:1px solid #29293c;border-radius:18px;background:rgba(20,20,32,.65)}
+.files-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.files-header h2{font-size:20px}.files-header button{padding:8px 14px}
+.file{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:14px 0;border-bottom:1px solid #29293c}
+.file:last-child{border-bottom:none}.file-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file a{flex-shrink:0;color:white;text-decoration:none;background:#5e50d8;padding:8px 12px;border-radius:8px}
+@media(max-width:650px){.container{padding:40px 0}.card{padding:20px}.buttons{grid-template-columns:1fr}.file{align-items:flex-start;flex-direction:column}.file a{width:100%;text-align:center}}
