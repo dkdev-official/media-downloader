@@ -1,125 +1,123 @@
 const express = require("express");
+const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
-const { spawn } = require("child_process");
 
 const app = express();
-const PORT = 3000;
-const DOWNLOAD_DIR = path.join(__dirname, "downloads");
-
-if (!fs.existsSync(DOWNLOAD_DIR)) {
-    fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
-}
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
 
-function validURL(value) {
-    try {
-        const url = new URL(value);
-        const allowedHosts = [
-            "youtube.com", "www.youtube.com", "youtu.be",
-            "m.youtube.com", "instagram.com", "www.instagram.com"
-        ];
-        return allowedHosts.includes(url.hostname.toLowerCase());
-    } catch {
-        return false;
-    }
+// Public static files
+const PUBLIC_DIR = path.join(__dirname, "public");
+app.use(express.static(PUBLIC_DIR));
+
+// Downloads directory
+const DOWNLOADS_DIR = path.join(__dirname, "downloads");
+if (!fs.existsSync(DOWNLOADS_DIR)) {
+  fs.mkdirSync(DOWNLOADS_DIR, { recursive: true });
 }
 
-function runYTDLP(url, type, res) {
-    let args = ["--no-playlist", "--newline"];
+// Serve homepage explicitly
+app.get("/", (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, "index.html"));
+});
 
-    if (type === "video" || type === "merged") {
-        args.push("-f", "bv*+ba/b", "--merge-output-format", "mp4");
-    }
-
-    if (type === "audio") {
-        args.push("-x", "--audio-format", "mp3", "--audio-quality", "0");
-    }
-
-    args.push("-o", path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s"), url);
-
-    const process = spawn("yt-dlp", args, { windowsHide: true });
-    let output = "";
-
-    process.stdout.on("data", data => {
-        const text = data.toString();
-        output += text;
-
-        for (const line of text.split("\n")) {
-            const match = line.match(/\[download\]\s+(\d+(?:\.\d+)?)%/);
-            if (match) {
-                res.write(`data: ${JSON.stringify({
-                    type: "progress",
-                    progress: Number(match[1])
-                })}\n\n`);
-            }
-        }
-    });
-
-    process.stderr.on("data", data => {
-        output += data.toString();
-    });
-
-    process.on("error", () => {
-        res.write(`data: ${JSON.stringify({
-            type: "error",
-            message: "yt-dlp start nahi hua. Check karo ki yt-dlp PATH me installed hai."
-        })}\n\n`);
-        res.end();
-    });
-
-    process.on("close", code => {
-        if (code !== 0) {
-            console.error(output);
-            res.write(`data: ${JSON.stringify({
-                type: "error",
-                message: "Download failed. URL/content availability aur yt-dlp installation check karo."
-            })}\n\n`);
-        } else {
-            res.write(`data: ${JSON.stringify({ type: "complete" })}\n\n`);
-        }
-        res.end();
-    });
+function isValidUrl(urlString) {
+  try {
+    const parsed = new URL(urlString);
+    const host = parsed.hostname.toLowerCase();
+    return (
+      host.includes("youtube.com") ||
+      host.includes("youtu.be") ||
+      host.includes("instagram.com")
+    );
+  } catch (e) {
+    return false;
+  }
 }
 
 app.get("/api/download", (req, res) => {
-    const { url, type } = req.query;
+  const { url, type } = req.query;
 
-    if (!url) return res.status(400).json({ error: "URL required" });
-    if (!validURL(url)) {
-        return res.status(400).json({
-            error: "Only supported YouTube/Instagram URLs are allowed."
-        });
+  if (!url || !isValidUrl(url)) {
+    return res.status(400).send("Invalid URL");
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  const sendEvent = (event, data) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  const outputTemplate = path.join(DOWNLOADS_DIR, "%(title)s.%(ext)s");
+
+  let args = [];
+  if (type === "audio") {
+    args = [
+      "-x",
+      "--audio-format",
+      "mp3",
+      "--audio-quality",
+      "0",
+      "-o",
+      outputTemplate,
+      url,
+    ];
+  } else {
+    args = [
+      "-f",
+      "bv*+ba/b",
+      "--merge-output-format",
+      "mp4",
+      "-o",
+      outputTemplate,
+      url,
+    ];
+  }
+
+  const isWin = process.platform === "win32";
+  const ytDlpCmd = isWin ? path.join(__dirname, "yt-dlp.exe") : "yt-dlp";
+
+  const processCmd = spawn(ytDlpCmd, args);
+
+  processCmd.stdout.on("data", (data) => {
+    const text = data.toString();
+    const percentMatch = text.match(/(\d+(?:\.\d+)?)%/);
+    if (percentMatch) {
+      sendEvent("progress", { percent: parseFloat(percentMatch[1]) });
     }
+  });
 
-    if (!["video", "audio", "merged"].includes(type)) {
-        return res.status(400).json({ error: "Invalid download type" });
+  processCmd.stderr.on("data", (data) => {
+    console.error("yt-dlp stderr:", data.toString());
+  });
+
+  processCmd.on("close", (code) => {
+    if (code === 0) {
+      sendEvent("complete", { message: "Download completed!" });
+    } else {
+      sendEvent("error", { message: "Download failed." });
     }
+    res.end();
+  });
 
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-
-    runYTDLP(url, type, res);
+  req.on("close", () => {
+    processCmd.kill();
+  });
 });
 
 app.get("/api/files", (req, res) => {
-    fs.readdir(DOWNLOAD_DIR, (err, files) => {
-        if (err) return res.status(500).json({ error: "Could not read downloads folder" });
-
-        res.json(files.map(file => ({
-            name: file,
-            url: `/downloads/${encodeURIComponent(file)}`
-        })));
-    });
+  fs.readdir(DOWNLOADS_DIR, (err, files) => {
+    if (err) return res.status(500).json([]);
+    res.json(files);
+  });
 });
 
-app.use("/downloads", express.static(DOWNLOAD_DIR, {
-    setHeaders: res => res.setHeader("Content-Disposition", "attachment")
-}));
+app.use("/downloads", express.static(DOWNLOADS_DIR));
 
 app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Media Downloader running at http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
