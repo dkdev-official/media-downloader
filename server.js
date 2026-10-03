@@ -1,18 +1,18 @@
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
-const youtubeDl = require("yt-dlp-exec");
+const youtubedl = require("youtube-dl-exec");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// Public folder
+// Public static files
 const PUBLIC_DIR = path.join(__dirname, "public");
 app.use(express.static(PUBLIC_DIR));
 
-// Downloads folder
+// Downloads directory
 const DOWNLOADS_DIR = path.join(__dirname, "downloads");
 if (!fs.existsSync(DOWNLOADS_DIR)) {
   fs.mkdirSync(DOWNLOADS_DIR, { recursive: true });
@@ -32,7 +32,6 @@ function isValidUrl(urlString) {
   }
 }
 
-// Download Endpoint
 app.get("/api/download", async (req, res) => {
   const { url, type } = req.query;
 
@@ -51,7 +50,7 @@ app.get("/api/download", async (req, res) => {
   const outputTemplate = path.join(DOWNLOADS_DIR, "%(title)s.%(ext)s");
 
   try {
-    sendEvent("progress", { percent: 10 });
+    sendEvent("progress", { percent: 15 });
 
     let options = {
       noPlaylist: true,
@@ -70,20 +69,19 @@ app.get("/api/download", async (req, res) => {
 
     sendEvent("progress", { percent: 50 });
 
-    // Download executing
-    await youtubeDl(url, options);
+    // Download automatically via official binary
+    await youtubedl(url, options);
 
     sendEvent("progress", { percent: 100 });
     sendEvent("complete", { message: "Download completed!" });
   } catch (error) {
     console.error("Download Error:", error);
-    sendEvent("error", { message: "Download failed: " + error.message });
+    sendEvent("error", { message: "Download failed." });
   } finally {
     res.end();
   }
 });
 
-// Downloaded Files List
 app.get("/api/files", (req, res) => {
   fs.readdir(DOWNLOADS_DIR, (err, files) => {
     if (err) return res.status(500).json([]);
