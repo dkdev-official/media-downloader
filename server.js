@@ -1,7 +1,5 @@
 const express = require("express");
-const { spawn } = require("child_process");
 const path = require("path");
-const fs = require("fs");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,11 +8,6 @@ app.use(express.json());
 
 const PUBLIC_DIR = path.join(__dirname, "public");
 app.use(express.static(PUBLIC_DIR));
-
-const DOWNLOADS_DIR = path.join(__dirname, "downloads");
-if (!fs.existsSync(DOWNLOADS_DIR)) {
-  fs.mkdirSync(DOWNLOADS_DIR, { recursive: true });
-}
 
 function isValidUrl(urlString) {
   try {
@@ -30,7 +23,8 @@ function isValidUrl(urlString) {
   }
 }
 
-app.get("/api/download", (req, res) => {
+// Download API using reliable Cobalt engine
+app.get("/api/download", async (req, res) => {
   const { url, type } = req.query;
 
   if (!url || !isValidUrl(url)) {
@@ -45,78 +39,38 @@ app.get("/api/download", (req, res) => {
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
-  const outputTemplate = path.join(DOWNLOADS_DIR, "%(title)s.%(ext)s");
+  try {
+    sendEvent("progress", { percent: 30 });
 
-  let commonArgs = [
-    "--no-playlist",
-    "--newline",
-    "--extractor-args", "youtube:player_client=ios,android,web",
-    "-o",
-    outputTemplate,
-    url
-  ];
+    const response = await fetch("https://co.wuk.sh/api/json", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify({
+        url: url,
+        downloadMode: type === "audio" ? "audio" : "auto",
+        audioFormat: "mp3"
+      })
+    });
 
-  let args = [];
-  if (type === "audio") {
-    args = [
-      "-x",
-      "--audio-format",
-      "mp3",
-      "--audio-quality",
-      "0",
-      ...commonArgs
-    ];
-  } else {
-    args = [
-      "-f",
-      "bv*+ba/b",
-      "--merge-output-format",
-      "mp4",
-      ...commonArgs
-    ];
-  }
+    const data = await response.json();
+    sendEvent("progress", { percent: 80 });
 
-  // Uses globally installed yt-dlp inside Docker
-  const processCmd = spawn("yt-dlp", args);
-
-  processCmd.stdout.on("data", (data) => {
-    const text = data.toString();
-    const percentMatch = text.match(/(\d+(?:\.\d+)?)%/);
-    if (percentMatch) {
-      sendEvent("progress", { percent: parseFloat(percentMatch[1]) });
-    }
-  });
-
-  processCmd.stderr.on("data", (data) => {
-    const errText = data.toString();
-    const percentMatch = errText.match(/(\d+(?:\.\d+)?)%/);
-    if (percentMatch) {
-      sendEvent("progress", { percent: parseFloat(percentMatch[1]) });
-    }
-  });
-
-  processCmd.on("close", (code) => {
-    if (code === 0) {
-      sendEvent("complete", { message: "Download completed!" });
+    if (data.url) {
+      sendEvent("progress", { percent: 100 });
+      sendEvent("complete", { message: "Success!", downloadUrl: data.url });
     } else {
-      sendEvent("error", { message: "Download failed." });
+      sendEvent("error", { message: "Could not fetch media. Try another link." });
     }
+  } catch (err) {
+    console.error(err);
+    sendEvent("error", { message: "API Error: " + err.message });
+  } finally {
     res.end();
-  });
-
-  req.on("close", () => {
-    processCmd.kill();
-  });
+  }
 });
-
-app.get("/api/files", (req, res) => {
-  fs.readdir(DOWNLOADS_DIR, (err, files) => {
-    if (err) return res.status(500).json([]);
-    res.json(files);
-  });
-});
-
-app.use("/downloads", express.static(DOWNLOADS_DIR));
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, "index.html"));
