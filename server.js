@@ -8,21 +8,17 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// Public static files
-const PUBLIC_DIR = path.join(__dirname, "public");
-app.use(express.static(PUBLIC_DIR));
+// Public folder static serve
+const publicPath = path.join(__dirname, "public");
+app.use(express.static(publicPath));
 
-// Downloads directory
+// Downloads folder
 const DOWNLOADS_DIR = path.join(__dirname, "downloads");
 if (!fs.existsSync(DOWNLOADS_DIR)) {
   fs.mkdirSync(DOWNLOADS_DIR, { recursive: true });
 }
 
-// Serve homepage explicitly
-app.get("/", (req, res) => {
-  res.sendFile(path.join(PUBLIC_DIR, "index.html"));
-});
-
+// URL Validation Function
 function isValidUrl(urlString) {
   try {
     const parsed = new URL(urlString);
@@ -37,6 +33,7 @@ function isValidUrl(urlString) {
   }
 }
 
+// Download API Stream
 app.get("/api/download", (req, res) => {
   const { url, type } = req.query;
 
@@ -109,6 +106,7 @@ app.get("/api/download", (req, res) => {
   });
 });
 
+// Files List API
 app.get("/api/files", (req, res) => {
   fs.readdir(DOWNLOADS_DIR, (err, files) => {
     if (err) return res.status(500).json([]);
@@ -117,6 +115,11 @@ app.get("/api/files", (req, res) => {
 });
 
 app.use("/downloads", express.static(DOWNLOADS_DIR));
+
+// Homepage route
+app.get("/", (req, res) => {
+  res.sendFile(path.join(publicPath, "index.html"));
+});
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
