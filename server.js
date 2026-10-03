@@ -49,12 +49,11 @@ app.get("/api/download", (req, res) => {
 
   const outputTemplate = path.join(DOWNLOADS_DIR, "%(title)s.%(ext)s");
 
-  // Bypass YouTube Cloud Bot Protection (Android Client Fallback)
+  // iOS and Android player client bypass for YouTube Cloud IP restriction
   let commonArgs = [
     "--no-playlist",
     "--newline",
-    "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "--extractor-args", "youtube:player_client=android,web",
+    "--extractor-args", "youtube:player_client=ios,android,web",
     "-o",
     outputTemplate,
     url
