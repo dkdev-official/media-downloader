@@ -49,10 +49,12 @@ app.get("/api/download", (req, res) => {
 
   const outputTemplate = path.join(DOWNLOADS_DIR, "%(title)s.%(ext)s");
 
-  // Common yt-dlp flags for stability on cloud platforms
+  // Bypass YouTube Cloud Bot Protection (Android Client Fallback)
   let commonArgs = [
     "--no-playlist",
     "--newline",
+    "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "--extractor-args", "youtube:player_client=android,web",
     "-o",
     outputTemplate,
     url
@@ -83,12 +85,8 @@ app.get("/api/download", (req, res) => {
 
   const processCmd = spawn(ytDlpCmd, args);
 
-  let errorOutput = "";
-
   processCmd.stdout.on("data", (data) => {
     const text = data.toString();
-    console.log("yt-dlp stdout:", text);
-
     const percentMatch = text.match(/(\d+(?:\.\d+)?)%/);
     if (percentMatch) {
       sendEvent("progress", { percent: parseFloat(percentMatch[1]) });
@@ -97,26 +95,17 @@ app.get("/api/download", (req, res) => {
 
   processCmd.stderr.on("data", (data) => {
     const errText = data.toString();
-    console.error("yt-dlp stderr:", errText);
-    errorOutput += errText;
-
     const percentMatch = errText.match(/(\d+(?:\.\d+)?)%/);
     if (percentMatch) {
       sendEvent("progress", { percent: parseFloat(percentMatch[1]) });
     }
   });
 
-  processCmd.on("error", (err) => {
-    console.error("Failed to start process:", err);
-    sendEvent("error", { message: "Failed to start yt-dlp: " + err.message });
-    res.end();
-  });
-
   processCmd.on("close", (code) => {
     if (code === 0) {
       sendEvent("complete", { message: "Download completed!" });
     } else {
-      sendEvent("error", { message: "Download failed. Check server logs." });
+      sendEvent("error", { message: "Download failed." });
     }
     res.end();
   });
