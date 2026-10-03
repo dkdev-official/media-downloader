@@ -8,17 +8,16 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// Public folder static serve
-const publicPath = path.join(__dirname, "public");
-app.use(express.static(publicPath));
+// Public static files
+const PUBLIC_DIR = path.join(__dirname, "public");
+app.use(express.static(PUBLIC_DIR));
 
-// Downloads folder
+// Downloads directory
 const DOWNLOADS_DIR = path.join(__dirname, "downloads");
 if (!fs.existsSync(DOWNLOADS_DIR)) {
   fs.mkdirSync(DOWNLOADS_DIR, { recursive: true });
 }
 
-// URL Validation Function
 function isValidUrl(urlString) {
   try {
     const parsed = new URL(urlString);
@@ -33,7 +32,6 @@ function isValidUrl(urlString) {
   }
 }
 
-// Download API Stream
 app.get("/api/download", (req, res) => {
   const { url, type } = req.query;
 
@@ -51,6 +49,15 @@ app.get("/api/download", (req, res) => {
 
   const outputTemplate = path.join(DOWNLOADS_DIR, "%(title)s.%(ext)s");
 
+  // Common yt-dlp flags for stability on cloud platforms
+  let commonArgs = [
+    "--no-playlist",
+    "--newline",
+    "-o",
+    outputTemplate,
+    url
+  ];
+
   let args = [];
   if (type === "audio") {
     args = [
@@ -59,9 +66,7 @@ app.get("/api/download", (req, res) => {
       "mp3",
       "--audio-quality",
       "0",
-      "-o",
-      outputTemplate,
-      url,
+      ...commonArgs
     ];
   } else {
     args = [
@@ -69,9 +74,7 @@ app.get("/api/download", (req, res) => {
       "bv*+ba/b",
       "--merge-output-format",
       "mp4",
-      "-o",
-      outputTemplate,
-      url,
+      ...commonArgs
     ];
   }
 
@@ -80,8 +83,12 @@ app.get("/api/download", (req, res) => {
 
   const processCmd = spawn(ytDlpCmd, args);
 
+  let errorOutput = "";
+
   processCmd.stdout.on("data", (data) => {
     const text = data.toString();
+    console.log("yt-dlp stdout:", text);
+
     const percentMatch = text.match(/(\d+(?:\.\d+)?)%/);
     if (percentMatch) {
       sendEvent("progress", { percent: parseFloat(percentMatch[1]) });
@@ -89,14 +96,27 @@ app.get("/api/download", (req, res) => {
   });
 
   processCmd.stderr.on("data", (data) => {
-    console.error("yt-dlp stderr:", data.toString());
+    const errText = data.toString();
+    console.error("yt-dlp stderr:", errText);
+    errorOutput += errText;
+
+    const percentMatch = errText.match(/(\d+(?:\.\d+)?)%/);
+    if (percentMatch) {
+      sendEvent("progress", { percent: parseFloat(percentMatch[1]) });
+    }
+  });
+
+  processCmd.on("error", (err) => {
+    console.error("Failed to start process:", err);
+    sendEvent("error", { message: "Failed to start yt-dlp: " + err.message });
+    res.end();
   });
 
   processCmd.on("close", (code) => {
     if (code === 0) {
       sendEvent("complete", { message: "Download completed!" });
     } else {
-      sendEvent("error", { message: "Download failed." });
+      sendEvent("error", { message: "Download failed. Check server logs." });
     }
     res.end();
   });
@@ -106,7 +126,6 @@ app.get("/api/download", (req, res) => {
   });
 });
 
-// Files List API
 app.get("/api/files", (req, res) => {
   fs.readdir(DOWNLOADS_DIR, (err, files) => {
     if (err) return res.status(500).json([]);
@@ -116,9 +135,8 @@ app.get("/api/files", (req, res) => {
 
 app.use("/downloads", express.static(DOWNLOADS_DIR));
 
-// Homepage route
 app.get("/", (req, res) => {
-  res.sendFile(path.join(publicPath, "index.html"));
+  res.sendFile(path.join(PUBLIC_DIR, "index.html"));
 });
 
 app.listen(PORT, "0.0.0.0", () => {
