@@ -74,7 +74,13 @@ async function startDownload(type) {
                     progress.style.width = "100%";
                     percentage.textContent = "100%";
                     statusText.textContent = "Download complete.";
-                    showMessage("File saved successfully.", "success");
+                    showMessage("File ready! Starting download...", "success");
+
+                    // Direct file download redirect
+                    if (data.downloadUrl) {
+                        window.location.href = data.downloadUrl;
+                    }
+
                     loadFiles();
                 }
 
@@ -127,5 +133,8 @@ function escapeHTML(value) {
         .replaceAll("'", "&#039;");
 }
 
-refreshButton.addEventListener("click", loadFiles);
+if (refreshButton) {
+    refreshButton.addEventListener("click", loadFiles);
+}
+
 loadFiles();
